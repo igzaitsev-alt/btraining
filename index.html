@@ -361,9 +361,11 @@ function localSrc(folder, file) {
 
 // Получить прямую CDN-ссылку через публичный API Яндекс.Диска
 async function ydUrl(relPath) {
+  // macOS загружает файлы в NFD-кодировке (й → и + диакритик),
+  // поэтому нормализуем путь в NFD перед отправкой в API
   const api = 'https://cloud-api.yandex.net/v1/disk/public/resources/download'
     + '?public_key=' + encodeURIComponent(YD_PUBLIC_KEY)
-    + '&path=' + encodeURIComponent('/' + relPath);
+    + '&path=' + encodeURIComponent('/' + relPath.normalize('NFD'));
   const r = await fetch(api);
   if (!r.ok) throw new Error('YD API ' + r.status);
   return (await r.json()).href;
