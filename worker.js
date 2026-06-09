@@ -26,22 +26,26 @@ export default {
     }
 
     // Путь к файлу, например /Блок 1 - .../Урок 1 - .../video.mp4
-    const filePath = decodeURIComponent(new URL(request.url).pathname)
-      .normalize('NFD'); // macOS загружает в NFD — нужно совпадать с именами на Диске
+    const rawPath = decodeURIComponent(new URL(request.url).pathname);
 
-    // Получаем временный CDN-URL от API Яндекс.Диска
-    const apiUrl = 'https://cloud-api.yandex.net/v1/disk/public/resources/download'
-      + '?public_key=' + encodeURIComponent(YD_PUBLIC_KEY)
-      + '&path=' + encodeURIComponent(filePath);
+    // Яндекс.Диск хранит имена в той кодировке, в которой они загружены.
+    // macOS загружает в NFD, веб-интерфейс Диска создаёт в NFC.
+    // Пробуем NFD → NFC → исходный вариант, берём первый успешный.
+    let href = null;
+    for (const norm of ['NFD', 'NFC', null]) {
+      const filePath = norm ? rawPath.normalize(norm) : rawPath;
+      const apiUrl = 'https://cloud-api.yandex.net/v1/disk/public/resources/download'
+        + '?public_key=' + encodeURIComponent(YD_PUBLIC_KEY)
+        + '&path=' + encodeURIComponent(filePath);
+      const apiResp = await fetch(apiUrl);
+      if (apiResp.ok) { href = (await apiResp.json()).href; break; }
+    }
 
-    const apiResp = await fetch(apiUrl);
-    if (!apiResp.ok) {
-      return new Response('File not found: ' + filePath, {
+    if (!href) {
+      return new Response('File not found: ' + rawPath, {
         status: 404, headers: CORS,
       });
     }
-
-    const { href } = await apiResp.json();
 
     // Проксируем запрос к Яндекс CDN, пробрасывая Range (нужен для перемотки видео)
     const proxyReq = { headers: {} };
