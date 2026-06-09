@@ -356,7 +356,9 @@ const WORKER_URL = 'https://frosty-flower-db71.ig-zaitsev.workers.dev';
 const IS_LOCAL = (location.protocol === 'file:');
 
 // Строит URL к файлу: локально — относительный путь, удалённо — через Worker
-function buildSrc(folder, file) {
+function buildSrc(folder, file, directUrl) {
+  // If a direct URL is provided and we're in web mode, use it (file not on Yandex Disk)
+  if (directUrl && !IS_LOCAL) return directUrl;
   const rel = folder ? folder + '/' + file : file;
   if (IS_LOCAL) {
     return rel.split('/').map(encodeURIComponent).join('/');
@@ -632,7 +634,10 @@ const COURSE = {
           title: 'Согласование цели с Душой',
           folder: 'Блок 3 - Цели и запасные варианты/Урок 6 - Согласование цели с Душой',
           videos: ['Урок 6 - Согласование цели с Душой.mp4'],
-          files: [{name:'Презентация', file:'Презентация.pdf', type:'pdf'}],
+          files: [
+            {name:'Презентация', file:'Презентация.pdf', type:'pdf'},
+            {name:'Медитация — Глаза ребёнка', file:'Медитация - Глаза ребенка.mp3', type:'mp3', url:'https://f621ad6e-ce0f-4fb1-94d5-cc6dc9cc09e7.selstorage.ru/Meditation_glaza_rebenka_new'}
+          ],
           task: 'Выполните медитацию «Глаза ребёнка». В ответе на задание напишите, получилось ли выполнить медитацию? Какие у вас были эмоции? Если вы получили ответ от ребёнка, какой он был?\n\nP.S. Если это упражнение не получилось с первого раза, попробуйте повторить его на следующий день.'
         },
         {
@@ -970,7 +975,7 @@ function showLesson(blockId, lessonNum) {
       <div class="section-card-body">
         <div class="files-grid">`;
     filesWithoutMp3.forEach(f => {
-      html += `<a class="file-chip ${f.type}" href="${buildSrc(lesson.folder, f.file)}" target="_blank">
+      html += `<a class="file-chip ${f.type}" href="${buildSrc(lesson.folder, f.file, f.url)}" target="_blank">
           <span class="file-icon">${fileIcon(f.type)}</span>
           <span>${f.name}</span>
         </a>`;
@@ -986,7 +991,7 @@ function showLesson(blockId, lessonNum) {
     mp3Files.forEach(f => {
       html += `<div style="margin-bottom:12px">
           <div style="font-size:.875rem;font-weight:600;margin-bottom:6px;color:#14532d">🎵 ${f.name}</div>
-          <audio controls class="audio-player" src="${buildSrc(lesson.folder, f.file)}"></audio>
+          <audio controls class="audio-player" src="${buildSrc(lesson.folder, f.file, f.url)}"></audio>
         </div>`;
     });
     html += `</div></div>`;
