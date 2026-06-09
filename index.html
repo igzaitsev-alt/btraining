@@ -369,14 +369,32 @@ async function ydUrl(relPath) {
   return (await r.json()).href;
 }
 
-// После установки innerHTML — async-заполнение src/href для [data-yd] элементов
+// После установки innerHTML — заполнение src/href для [data-yd] элементов
 function hydrateRemote(container) {
-  container.querySelectorAll('[data-yd]').forEach(async el => {
-    try {
-      const url = await ydUrl(el.dataset.yd);
-      if (el.matches('video,audio')) el.src = url;
-      else el.href = url;
-    } catch(e) { console.warn('YD failed:', el.dataset.yd, e); }
+  // Видео и аудио: получаем URL сразу, при ошибке — обновляем ссылку и пробуем снова
+  container.querySelectorAll('video[data-yd], audio[data-yd]').forEach(async el => {
+    const path = el.dataset.yd;
+    try { el.src = await ydUrl(path); } catch(e) { console.warn('YD prefetch:', path, e); }
+    el.addEventListener('error', async () => {
+      try { el.src = await ydUrl(path); el.load(); } catch(e) { console.warn('YD retry:', path, e); }
+    }, { once: true });
+  });
+
+  // Файлы: запрашиваем свежую ссылку в момент клика (CDN-URL кратковременны)
+  container.querySelectorAll('a[data-yd]').forEach(el => {
+    el.addEventListener('click', async e => {
+      e.preventDefault();
+      // Открываем вкладку синхронно — иначе браузер заблокирует как popup
+      const win = window.open('', '_blank');
+      try {
+        const url = await ydUrl(el.dataset.yd);
+        win.location.href = url;
+      } catch(err) {
+        win.close();
+        console.error('YD link failed:', el.dataset.yd, err);
+        alert('Не удалось получить ссылку на файл. Попробуйте ещё раз.');
+      }
+    });
   });
 }
 
@@ -994,7 +1012,7 @@ function showLesson(blockId, lessonNum) {
       const hrefAttr = IS_LOCAL
         ? `href="${localSrc(lesson.folder, f.file)}"`
         : `data-yd="${rel}"`;
-      html += `<a class="file-chip ${f.type}" ${hrefAttr} target="_blank" download>
+      html += `<a class="file-chip ${f.type}" ${hrefAttr} ${IS_LOCAL ? 'target="_blank" download' : ''}>
           <span class="file-icon">${fileIcon(f.type)}</span>
           <span>${f.name}</span>
         </a>`;
