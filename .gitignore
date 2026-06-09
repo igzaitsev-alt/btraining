@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+.DS_Store?
+._*
+
+# Claude Code session data
+.claude/
+
+# Video / audio files — хранятся на Яндекс.Диске, не в репо
+*.mp4
+*.ts
+*.mp3
+*.wav
+
+# Course material folders — только index.html нужен в репо
+Блок */
+Введение/
