@@ -1,5 +1,6 @@
 /**
  * Cloudflare Worker — прокси для Яндекс.Диска
+ * VERSION: 2
  *
  * Деплой:
  *  1. Зайди на https://workers.cloudflare.com (бесплатный аккаунт)
@@ -25,24 +26,46 @@ export default {
       return new Response(null, { headers: CORS });
     }
 
+    const url = new URL(request.url);
+
+    // Debug endpoint: GET /~debug/path
+    if (url.pathname.startsWith('/~debug')) {
+      const testPath = decodeURIComponent(url.pathname.slice(7) || '/test');
+      const results = [];
+      for (const norm of ['NFD', 'NFC', null]) {
+        const filePath = norm ? testPath.normalize(norm) : testPath;
+        const apiUrl = 'https://cloud-api.yandex.net/v1/disk/public/resources/download'
+          + '?public_key=' + encodeURIComponent(YD_PUBLIC_KEY)
+          + '&path=' + encodeURIComponent(filePath);
+        const apiResp = await fetch(apiUrl);
+        results.push({ norm: norm || 'raw', status: apiResp.status, ok: apiResp.ok });
+        if (apiResp.ok) break;
+      }
+      return new Response(JSON.stringify({ version: 2, testPath, results }, null, 2), {
+        headers: { ...CORS, 'Content-Type': 'application/json' }
+      });
+    }
+
     // Путь к файлу, например /Блок 1 - .../Урок 1 - .../video.mp4
-    const rawPath = decodeURIComponent(new URL(request.url).pathname);
+    const rawPath = decodeURIComponent(url.pathname);
 
     // Яндекс.Диск хранит имена в той кодировке, в которой они загружены.
     // macOS загружает в NFD, веб-интерфейс Диска создаёт в NFC.
     // Пробуем NFD → NFC → исходный вариант, берём первый успешный.
     let href = null;
+    let debugStatuses = [];
     for (const norm of ['NFD', 'NFC', null]) {
       const filePath = norm ? rawPath.normalize(norm) : rawPath;
       const apiUrl = 'https://cloud-api.yandex.net/v1/disk/public/resources/download'
         + '?public_key=' + encodeURIComponent(YD_PUBLIC_KEY)
         + '&path=' + encodeURIComponent(filePath);
       const apiResp = await fetch(apiUrl);
+      debugStatuses.push((norm || 'raw') + ':' + apiResp.status);
       if (apiResp.ok) { href = (await apiResp.json()).href; break; }
     }
 
     if (!href) {
-      return new Response('File not found: ' + rawPath, {
+      return new Response('File not found (v2): ' + rawPath + ' | tried: ' + debugStatuses.join(', '), {
         status: 404, headers: CORS,
       });
     }
