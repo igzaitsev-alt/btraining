@@ -348,56 +348,21 @@
 // ============================================================
 // CONFIGURATION
 // ============================================================
-// Публичная папка курса на Яндекс.Диске
-const YD_PUBLIC_KEY = 'https://disk.yandex.ru/d/WsdOWS-Wscddew';
-// file:// = локальный режим; http/https = удалённый (Яндекс.Диск)
+// Cloudflare Worker — прокси для Яндекс.Диска (см. worker.js)
+// После деплоя замени URL ниже на свой вида https://yd-proxy.ИМЯ.workers.dev
+const WORKER_URL = '';
+
+// file:// = локальный режим (файлы рядом с index.html)
 const IS_LOCAL = (location.protocol === 'file:');
 
-// Локальный путь (file:// режим)
-function localSrc(folder, file) {
-  const raw = folder ? folder + '/' + file : file;
-  return raw.split('/').map(encodeURIComponent).join('/');
-}
-
-// Получить прямую CDN-ссылку через публичный API Яндекс.Диска
-async function ydUrl(relPath) {
-  // macOS загружает файлы в NFD-кодировке (й → и + диакритик),
-  // поэтому нормализуем путь в NFD перед отправкой в API
-  const api = 'https://cloud-api.yandex.net/v1/disk/public/resources/download'
-    + '?public_key=' + encodeURIComponent(YD_PUBLIC_KEY)
-    + '&path=' + encodeURIComponent('/' + relPath.normalize('NFD'));
-  const r = await fetch(api);
-  if (!r.ok) throw new Error('YD API ' + r.status);
-  return (await r.json()).href;
-}
-
-// После установки innerHTML — заполнение src/href для [data-yd] элементов
-function hydrateRemote(container) {
-  // Видео и аудио: получаем URL сразу, при ошибке — обновляем ссылку и пробуем снова
-  container.querySelectorAll('video[data-yd], audio[data-yd]').forEach(async el => {
-    const path = el.dataset.yd;
-    try { el.src = await ydUrl(path); } catch(e) { console.warn('YD prefetch:', path, e); }
-    el.addEventListener('error', async () => {
-      try { el.src = await ydUrl(path); el.load(); } catch(e) { console.warn('YD retry:', path, e); }
-    }, { once: true });
-  });
-
-  // Файлы: запрашиваем свежую ссылку в момент клика (CDN-URL кратковременны)
-  container.querySelectorAll('a[data-yd]').forEach(el => {
-    el.addEventListener('click', async e => {
-      e.preventDefault();
-      // Открываем вкладку синхронно — иначе браузер заблокирует как popup
-      const win = window.open('', '_blank');
-      try {
-        const url = await ydUrl(el.dataset.yd);
-        win.location.href = url;
-      } catch(err) {
-        win.close();
-        console.error('YD link failed:', el.dataset.yd, err);
-        alert('Не удалось получить ссылку на файл. Попробуйте ещё раз.');
-      }
-    });
-  });
+// Строит URL к файлу: локально — относительный путь, удалённо — через Worker
+function buildSrc(folder, file) {
+  const rel = folder ? folder + '/' + file : file;
+  if (IS_LOCAL) {
+    return rel.split('/').map(encodeURIComponent).join('/');
+  }
+  return WORKER_URL.replace(/\/$/, '') + '/' +
+    rel.split('/').map(p => encodeURIComponent(p)).join('/');
 }
 
 // ============================================================
@@ -945,12 +910,11 @@ function showWelcome() {
         <div class="section-card-header">🎬 Вводное видео</div>
         <div class="section-card-body">
           <div class="video-wrapper">
-            <video controls preload="metadata" ${IS_LOCAL ? `src="${localSrc('', COURSE.intro_video)}"` : `data-yd="${COURSE.intro_video}"`}></video>
+            <video controls preload="metadata" src="${buildSrc('', COURSE.intro_video)}"></video>
           </div>
         </div>
       </div>` : ''}
     </div>`;
-  if (!IS_LOCAL) hydrateRemote(document.getElementById('main'));
 }
 
 function showLesson(blockId, lessonNum) {
@@ -978,12 +942,8 @@ function showLesson(blockId, lessonNum) {
       <div class="section-card-header">🎬 Видеоурок</div>
       <div class="section-card-body">`;
     lesson.videos.forEach((v, i) => {
-      const rel = lesson.folder ? lesson.folder + '/' + v : v;
-      const srcAttr = IS_LOCAL
-        ? `src="${localSrc(lesson.folder, v)}"`
-        : `data-yd="${rel}"`;
       html += `<div class="video-wrapper">
-          <video controls preload="metadata" ${srcAttr}></video>
+          <video controls preload="metadata" src="${buildSrc(lesson.folder, v)}"></video>
         </div>`;
       if (lesson.videos.length > 1) {
         html += `<div class="video-label">Часть ${i + 1}</div>`;
@@ -1010,11 +970,7 @@ function showLesson(blockId, lessonNum) {
       <div class="section-card-body">
         <div class="files-grid">`;
     filesWithoutMp3.forEach(f => {
-      const rel = lesson.folder ? lesson.folder + '/' + f.file : f.file;
-      const hrefAttr = IS_LOCAL
-        ? `href="${localSrc(lesson.folder, f.file)}"`
-        : `data-yd="${rel}"`;
-      html += `<a class="file-chip ${f.type}" ${hrefAttr} ${IS_LOCAL ? 'target="_blank" download' : ''}>
+      html += `<a class="file-chip ${f.type}" href="${buildSrc(lesson.folder, f.file)}" target="_blank">
           <span class="file-icon">${fileIcon(f.type)}</span>
           <span>${f.name}</span>
         </a>`;
@@ -1028,13 +984,9 @@ function showLesson(blockId, lessonNum) {
       <div class="section-card-header">🎵 Медитации и аудио</div>
       <div class="section-card-body">`;
     mp3Files.forEach(f => {
-      const rel = lesson.folder ? lesson.folder + '/' + f.file : f.file;
-      const srcAttr = IS_LOCAL
-        ? `src="${localSrc(lesson.folder, f.file)}"`
-        : `data-yd="${rel}"`;
       html += `<div style="margin-bottom:12px">
           <div style="font-size:.875rem;font-weight:600;margin-bottom:6px;color:#14532d">🎵 ${f.name}</div>
-          <audio controls class="audio-player" ${srcAttr}></audio>
+          <audio controls class="audio-player" src="${buildSrc(lesson.folder, f.file)}"></audio>
         </div>`;
     });
     html += `</div></div>`;
@@ -1059,8 +1011,8 @@ function showLesson(blockId, lessonNum) {
   const main = document.getElementById('main');
   main.innerHTML = html;
   main.scrollTop = 0;
-  if (!IS_LOCAL) hydrateRemote(main);
 }
+
 
 function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
