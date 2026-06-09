@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Управление событиями своей жизни</title>
+<style>
+  :root {
+    --sidebar-bg: #1a2332;
+    --sidebar-hover: #243045;
+    --sidebar-active: #2d6a4f;
+    --accent: #40916c;
+    --accent-light: #52b788;
+    --text-primary: #1b2332;
+    --text-secondary: #546e7a;
+    --bg-page: #f4f6f9;
+    --bg-card: #ffffff;
+    --border: #e0e6ed;
+    --task-bg: #fff8e1;
+    --task-border: #f9a825;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---- TOP HEADER ---- */
+  .top-header {
+    background: var(--sidebar-bg);
+    color: #fff;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .top-header .logo { font-size: 1.25rem; font-weight: 700; letter-spacing: -.5px; }
+  .top-header .subtitle { font-size: .85rem; color: #94a3b8; margin-left: auto; white-space: nowrap; }
+  .menu-btn {
+    display: none;
+    background: none; border: none; color: #fff;
+    font-size: 1.4rem; cursor: pointer; padding: 4px;
+  }
+
+  /* ---- LAYOUT ---- */
+  .layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    height: calc(100vh - 52px);
+  }
+
+  /* ---- SIDEBAR ---- */
+  .sidebar {
+    width: 300px;
+    min-width: 300px;
+    background: var(--sidebar-bg);
+    color: #cbd5e1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 32px;
+    flex-shrink: 0;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+  .block-section { border-bottom: 1px solid #243045; }
+  .block-title {
+    padding: 14px 18px 12px;
+    font-size: .8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    user-select: none;
+    transition: color .2s;
+  }
+  .block-title:hover { color: #94a3b8; }
+  .block-title .chevron {
+    margin-left: auto;
+    font-size: .75rem;
+    transition: transform .25s;
+  }
+  .block-section.open .chevron { transform: rotate(90deg); }
+  .block-title .block-icon { font-size: 1rem; }
+
+  .lessons-list { display: none; }
+  .block-section.open .lessons-list { display: block; }
+
+  .lesson-item {
+    padding: 10px 18px 10px 36px;
+    font-size: .875rem;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    line-height: 1.35;
+    border-left: 3px solid transparent;
+  }
+  .lesson-item:hover { background: var(--sidebar-hover); color: #e2e8f0; }
+  .lesson-item.active {
+    background: rgba(64,145,108,.15);
+    color: #6ee7b7;
+    border-left-color: var(--accent-light);
+    font-weight: 600;
+  }
+  .lesson-item .num {
+    font-size: .75rem;
+    color: #475569;
+    min-width: 18px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .lesson-item.active .num { color: #4ade80; }
+
+  /* ---- MAIN CONTENT ---- */
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px 32px;
+    min-width: 0;
+  }
+  .main::-webkit-scrollbar { width: 6px; }
+  .main::-webkit-scrollbar-thumb { background: #c9d4df; border-radius: 4px; }
+
+  .welcome-screen {
+    max-width: 700px;
+    margin: 40px auto;
+    text-align: center;
+  }
+  .welcome-screen h1 { font-size: 2rem; color: var(--text-primary); margin-bottom: 12px; }
+  .welcome-screen p { color: var(--text-secondary); font-size: 1.05rem; margin-bottom: 24px; line-height: 1.6; }
+  .welcome-screen .stats {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin: 24px 0;
+  }
+  .stat-item { text-align: center; }
+  .stat-item .num { font-size: 2rem; font-weight: 700; color: var(--accent); }
+  .stat-item .label { font-size: .8rem; color: var(--text-secondary); }
+
+  /* Config panel */
+  .config-panel {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin: 24px auto;
+    max-width: 700px;
+    font-size: .875rem;
+  }
+  .config-panel h3 { color: #0369a1; margin-bottom: 8px; font-size: .95rem; }
+  .config-panel p { color: #0369a1; margin-bottom: 10px; line-height: 1.5; }
+  .config-row { display: flex; gap: 8px; align-items: center; }
+  .config-row input {
+    flex: 1; padding: 8px 12px; border: 1px solid #bae6fd; border-radius: 6px;
+    font-size: .875rem; background: #fff; color: var(--text-primary);
+  }
+  .config-row button {
+    padding: 8px 16px; background: #0284c7; color: #fff; border: none;
+    border-radius: 6px; cursor: pointer; font-size: .875rem; white-space: nowrap;
+  }
+  .config-row button:hover { background: #0369a1; }
+  .config-status { margin-top: 8px; font-size: .8rem; color: #0369a1; }
+
+  /* Lesson page */
+  .lesson-header { margin-bottom: 24px; }
+  .lesson-breadcrumb { font-size: .8rem; color: var(--text-secondary); margin-bottom: 6px; }
+  .lesson-breadcrumb span { color: var(--accent); }
+  .lesson-title { font-size: 1.7rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+  .lesson-meta { font-size: .85rem; color: var(--text-secondary); }
+
+  /* Video section */
+  .section-card {
+    background: var(--bg-card);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.07);
+    border: 1px solid var(--border);
+  }
+  .section-card-header {
+    padding: 14px 20px;
+    font-weight: 700;
+    font-size: .9rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fafbfc;
+    color: var(--text-primary);
+  }
+  .section-card-body { padding: 20px; }
+
+  /* Video player */
+  .video-wrapper {
+    position: relative;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .video-wrapper video {
+    width: 100%;
+    display: block;
+    max-height: 480px;
+  }
+  .video-label {
+    font-size: .8rem;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-top: 6px;
+    margin-bottom: 16px;
+  }
+
+  /* Files */
+  .files-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .file-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: .875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all .15s;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .file-chip.pdf {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fde68a;
+  }
+  .file-chip.pdf:hover { background: #fde68a; }
+  .file-chip.docx {
+    background: #dbeafe;
+    color: #1e3a8a;
+    border-color: #bfdbfe;
+  }
+  .file-chip.docx:hover { background: #bfdbfe; }
+  .file-chip.mp3 {
+    background: #f0fdf4;
+    color: #14532d;
+    border-color: #bbf7d0;
+  }
+  .file-chip.mp3:hover { background: #bbf7d0; }
+  .file-icon { font-size: 1rem; }
+
+  /* Task/Homework */
+  .task-card {
+    background: var(--task-bg);
+    border: 1px solid var(--task-border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+  }
+  .task-card .task-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 1rem;
+    color: #7c4900;
+    margin-bottom: 12px;
+  }
+  .task-card .task-text {
+    font-size: .95rem;
+    line-height: 1.7;
+    color: #4a3000;
+  }
+
+  /* Audio player */
+  .audio-player { width: 100%; margin: 8px 0; accent-color: var(--accent); }
+
+  /* Stop lesson badge */
+  .stop-badge {
+    display: inline-block;
+    background: #fee2e2;
+    color: #991b1b;
+    font-size: .7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid #fca5a5;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .menu-btn { display: block; }
+    .sidebar {
+      position: fixed;
+      left: -300px;
+      top: 52px;
+      height: calc(100vh - 52px);
+      z-index: 99;
+      transition: left .25s;
+    }
+    .sidebar.open { left: 0; box-shadow: 4px 0 20px rgba(0,0,0,.3); }
+    .main { padding: 20px 18px; }
+    .layout { height: calc(100vh - 52px); }
+    .top-header .subtitle { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top-header">
+  <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+  <div class="logo">🌿 Управление событиями своей жизни</div>
+  <div class="subtitle">Группа «Белка» · Базовый пакет</div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <!-- Generated by JS -->
+  </aside>
+  <main class="main" id="main">
+    <!-- Generated by JS -->
+  </main>
+</div>
+
+<script>
+// ============================================================
+// CONFIGURATION
+// ============================================================
+// Публичная папка курса на Яндекс.Диске
+const YD_PUBLIC_KEY = 'https://disk.yandex.ru/d/WsdOWS-Wscddew';
+// file:// = локальный режим; http/https = удалённый (Яндекс.Диск)
+const IS_LOCAL = (location.protocol === 'file:');
+
+// Локальный путь (file:// режим)
+function localSrc(folder, file) {
+  const raw = folder ? folder + '/' + file : file;
+  return raw.split('/').map(encodeURIComponent).join('/');
+}
+
+// Получить прямую CDN-ссылку через публичный API Яндекс.Диска
+async function ydUrl(relPath) {
+  const api = 'https://cloud-api.yandex.net/v1/disk/public/resources/download'
+    + '?public_key=' + encodeURIComponent(YD_PUBLIC_KEY)
+    + '&path=' + encodeURIComponent('/' + relPath);
+  const r = await fetch(api);
+  if (!r.ok) throw new Error('YD API ' + r.status);
+  return (await r.json()).href;
+}
+
+// После установки innerHTML — async-заполнение src/href для [data-yd] элементов
+function hydrateRemote(container) {
+  container.querySelectorAll('[data-yd]').forEach(async el => {
+    try {
+      const url = await ydUrl(el.dataset.yd);
+      if (el.matches('video,audio')) el.src = url;
+      else el.href = url;
+    } catch(e) { console.warn('YD failed:', el.dataset.yd, e); }
+  });
+}
+
+// ============================================================
+// COURSE DATA
+// ============================================================
+const COURSE = {
+  title: 'Управление событиями своей жизни',
+  intro_video: 'US-0-0_Belka_Strelka.mp4',
+  blocks: [
+
+    // ─── ВВЕДЕНИЕ ───────────────────────────────────────────
+    {
+      id: 'intro',
+      title: 'Введение',
+      icon: '🎓',
+      folder: 'Введение',
+      lessons: [
+        {
+          num: 1,
+          title: 'Как учиться на тренинге',
+          folder: 'Введение/Урок 1 - Как учиться на тренинге',
+          videos: ['Урок 1 - Как учиться на тренинге.mp4'],
+          files: [
+            {name: 'Презентация', file: 'Презентация.pdf', type: 'pdf'}
+          ],
+          task: ''
+        }
+      ]
+    },
+
+    // ─── БЛОК 1 ─────────────────────────────────────────────
+    {
+      id: 'block1',
+      title: 'Блок 1 — Основные модели нашей жизни',
+      icon: '🧩',
+      folder: 'Блок 1 - Основные модели нашей жизни',
+      lessons: [
+        {
+          num: 1,
+          title: 'Четыре слоя жизни',
+          folder: 'Блок 1 - Основные модели нашей жизни/Урок 1 - Четыре слоя жизни',
+          videos: ['Урок 1 - Четыре слоя жизни.mp4'],
+          files: [{name:'Презентация', file:'Презентация.pdf', type:'pdf'}],
+          task: 'Кратко опишите один фрагмент из самой «зелёной» (удачной) линии в вашей взрослой жизни, когда вы чувствовали, что Мир двигался вам навстречу — всё складывалось легко и удачно.'
+        },
+        {
+          num: 2,
+          title: 'Переход по линиям жизни',
+          folder: 'Блок 1 - Основные модели нашей жизни/Урок 2 - Переход по линиям жизни',
+          videos: ['Урок 2 - Переход по линиям жизни.mp4'],
+          files: [{name:'Презентация', file:'Презентация.pdf', type:'pdf'}],
+          task: 'Опишите одну неприятную ситуацию из недавнего прошлого, когда вы эмоционально среагировали на какое-то событие. Какие у вас были чувства, эмоции и какие мысли?'
+        },
+        {
+          num: 3,
+          title: 'Тайна развилки',
+          folder: 'Блок 1 - Основные модели нашей жизни/Урок 3 - Тайна развилки',
+          videos: ['Урок 3 - Тайна развилки.mp4'],
+          files: [{name:'Презентация', file:'Презентация.pdf', type:'pdf'}],
+          task: 'Напишите, понятна ли вам разница между тремя компонентами нашей реакции на события?'
+        },
+        {
+          num: 4,
+          title: 'Решение не имеет значения',
+          folder: 'Блок 1 - Основные модели нашей жизни/Урок 4 - Решение не имеет значения',
+          videos: ['Урок 4 - Решение не имеет значения.mp4'],
+          files: [{name:'Презентация', file:'Презентация.pdf', type:'pdf'}],
+          task: '1. Попробуйте в ближайшие дни применить инструмент «7 минут» к какой-то ситуации, где нужно будет сделать выбор.\n\n2. В ответе на задание напишите, какие приёмы вы сами используете, когда вам нужно сделать выбор между двумя альтернативными вариантами, а логический анализ в данный момент неэффективен?'
+        },
+        {
+          num: 5,
+          title: 'Событие не имеет значения',
+          folder: 'Блок 1 - Основные модели нашей жизни/Урок 5 - Событие не имеет значения',
+          videos: ['Урок 5 - Событие не имеет значения.mp4'],
+          files: [{name:'Презентация', file:'Презентация.pdf', type:'pdf'}],
+          task: 'Опишите коротко ситуацию, в которой какой-то «проигрыш» (неудача) в вашей жизни спустя время обернулся неожиданным «выигрышем» (удачей). Если получится, вспомните свою первоначальную реакцию в момент «проигрыша».'
+        },
+        {
+          num: 6,
+          title: 'Действие не имеет значения',
+          folder: 'Блок 1 - Основные модели нашей жизни/Урок 6 - Действие не имеет значения',
+          videos: ['Урок 6 - Действие не имеет значения.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация.pdf', type:'pdf'},
+            {name:'Примеры действий для контакта с жизнью', file:'Примеры действий для контакта с жизнью.pdf', type:'pdf'}
+          ],
+          task: ''
+        },
+        {
+          num: 7,
+          title: 'Информационное поле',
+          folder: 'Блок 1 - Основные модели нашей жизни/Урок 7 - Информационное поле',
+          videos: ['Урок 7 - Информационное поле.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация.pdf', type:'pdf'},
+            {name:'Медитация — Состояние присутствия', file:'Медитация - Состояние присутствия.mp3', type:'mp3'}
+          ],
+          task: 'Выполните упражнение «Состояние присутствия». Напишите, как вы себя чувствуете после него?'
+        },
+        {
+          num: 8,
+          title: 'Слои мироздания',
+          folder: 'Блок 1 - Основные модели нашей жизни/Урок 8 - Слои мироздания',
+          videos: ['Урок 8 - Слои мироздания.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация.pdf', type:'pdf'},
+            {name:'Значимые точки (бланк)', file:'Значимые точки (бланк).docx', type:'docx'}
+          ],
+          task: ''
+        },
+        {
+          num: 9,
+          title: 'Наши цели',
+          folder: 'Блок 1 - Основные модели нашей жизни/Урок 9 - Наши цели',
+          videos: ['Урок 9 - Наши цели.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация.pdf', type:'pdf'},
+            {name:'Таблица целей', file:'Таблица целей.docx', type:'docx'},
+            {name:'Аудио — Как достичь цели и быть счастливым', file:'Аудио - Как достичь цели и быть счастливым.mp3', type:'mp3'}
+          ],
+          task: '',
+          stop: true
+        }
+      ]
+    },
+
+    // ─── БЛОК 2 ─────────────────────────────────────────────
+    {
+      id: 'block2',
+      title: 'Блок 2 — Управление событиями в точке развилки',
+      icon: '🔀',
+      folder: 'Блок 2 - Управление событиями в точке развилки',
+      lessons: [
+        {
+          num: 1,
+          title: 'Эмоция',
+          folder: 'Блок 2 - Управление событиями в точке развилки/Урок 1 - Эмоция',
+          videos: ['Урок 1 - Эмоция.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация - Эмоция.pdf', type:'pdf'},
+            {name:'Образец работы с эмоциями', file:'Образец работы с эмоциями.pdf', type:'pdf'}
+          ],
+          task: ''
+        },
+        {
+          num: 2,
+          title: 'Отношение',
+          folder: 'Блок 2 - Управление событиями в точке развилки/Урок 2 - Отношение',
+          videos: ['Урок 2 - Отношение.mp4'],
+          files: [{name:'Презентация', file:'Презентация - Отношение.pdf', type:'pdf'}],
+          task: ''
+        },
+        {
+          num: 3,
+          title: 'Разделение Эмоций и Отношения',
+          folder: 'Блок 2 - Управление событиями в точке развилки/Урок 3 - Разделение Эмоций и Отношения',
+          videos: ['Урок 3 - Разделение Эмоций и Отношения.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация - Разделение Эмоций и Отношения.pdf', type:'pdf'},
+            {name:'Методичка', file:'Методичка - Разделение эмоций и отношения.pdf', type:'pdf'}
+          ],
+          task: 'Кратко опишите какую-то неприятную ситуацию из прошлого — когда что-то вас сильно выбило эмоционально. Попробуйте назвать отдельно Эмоцию (эмоции), которую вы испытали в тот момент, и Отношение, которое у вас появилось к этому Событию.\n\nПример: «Конфликт с N. по поводу денег после дня рождения. Эмоции: злость, боль. Отношение: какая сволочь этот N.»\n\nОбратите внимание: это задание направлено на работу именно с событиями прошлого.'
+        },
+        {
+          num: 4,
+          title: 'Мой Мир — моё зеркало',
+          folder: 'Блок 2 - Управление событиями в точке развилки/Урок 4 - Мой Мир – мое зеркало',
+          videos: ['Урок 4 - Мой Мир – мое зеркало.mp4'],
+          files: [{name:'Презентация', file:'Презентация - Мой Мир мое зеркало.pdf', type:'pdf'}],
+          task: 'Кратко опишите одну ситуацию (из любой сферы жизни), в которой ваше Отношение очень жёстко зависит от происходящих событий, и вам пока не удаётся разорвать эту связь.'
+        },
+        {
+          num: 5,
+          title: 'Образ будущего',
+          folder: 'Блок 2 - Управление событиями в точке развилки/Урок 5 - Образ будущего',
+          videos: ['Урок 5 - Образ будущего.mp4'],
+          files: [{name:'Презентация', file:'Презентация - Образ будущего.pdf', type:'pdf'}],
+          task: ''
+        },
+        {
+          num: 6,
+          title: 'Событийный круг',
+          folder: 'Блок 2 - Управление событиями в точке развилки/Урок 6 - Событийный круг',
+          videos: ['Урок 6 - Событийный круг.mp4'],
+          files: [{name:'Презентация', file:'Презентация - Событийный круг.pdf', type:'pdf'}],
+          task: ''
+        },
+        {
+          num: 7,
+          title: 'Как самому разрушить своё счастье',
+          folder: 'Блок 2 - Управление событиями в точке развилки/Урок 7 - Как самому разрушить свое счастье',
+          videos: ['Урок 7 - Как самому разрушить свое счастье.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация - Как разрушить счастье.pdf', type:'pdf'},
+            {name:'Методичка', file:'Методичка - Как самому разрушить свое счастье.pdf', type:'pdf'}
+          ],
+          task: 'Возьмите план, который вы составили на предыдущем уроке. Внесите в самое начало вашего плана пункт №0: «Этот план не будет выполнен в точности до конца».\n\nВ ответе на задание напишите, меняется ли что-то в ваших ощущениях, когда вы дополняете свой план таким образом. Помогло ли вам это упражнение отпустить излишний контроль за ситуацией? Сам план в ответе на задание писать не нужно.'
+        },
+        {
+          num: 8,
+          title: 'Мой Мир заботится обо мне',
+          folder: 'Блок 2 - Управление событиями в точке развилки/Урок 8 - Мой Мир заботится обо мне',
+          videos: ['Урок 8 - Мой Мир заботится обо мне.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация - Мой Мир заботится.pdf', type:'pdf'},
+            {name:'Методичка', file:'Методичка - Мой мир заботится обо мне.pdf', type:'pdf'}
+          ],
+          task: '',
+          stop: true
+        }
+      ]
+    },
+
+    // ─── БЛОК 3 ─────────────────────────────────────────────
+    {
+      id: 'block3',
+      title: 'Блок 3 — Цели и запасные варианты',
+      icon: '🎯',
+      folder: 'Блок 3 - Цели и запасные варианты',
+      lessons: [
+        {
+          num: 1,
+          title: 'Что такое цель',
+          folder: 'Блок 3 - Цели и запасные варианты/Урок 1 - Что такое цель',
+          videos: ['Урок 1 - Что такое цель.mp4'],
+          files: [{name:'Презентация', file:'Презентация.pdf', type:'pdf'}],
+          task: 'Выберите несколько глобальных целей из своего списка (или из «Таблицы целей»), который вы составляли в 9-м уроке первого блока. Пройдите с этими целями до конца цепочку вопросов «Зачем тебе эта цель?». Запишите 2–3 такие цепочки.\n\nКстати, можете после этого задания откорректировать свой первичный список целей. Но обязательно сохраните первоначальный вариант, чтобы в конце тренинга сравнить.'
+        },
+        {
+          num: 2,
+          title: 'Целевой слайд',
+          folder: 'Блок 3 - Цели и запасные варианты/Урок 2 - Целевой слайд',
+          videos: ['Урок 2 - Целевой слайд.mp4'],
+          files: [{name:'Презентация', file:'Презентация.pdf', type:'pdf'}],
+          task: ''
+        },
+        {
+          num: 3,
+          title: 'Средства (путь к цели)',
+          folder: 'Блок 3 - Цели и запасные варианты/Урок 3 - Средства (путь к цели)',
+          videos: ['Урок 3 - Средства (путь к цели).mp4'],
+          files: [{name:'Презентация', file:'Презентация.pdf', type:'pdf'}],
+          task: '1. В ближайшие дни, поймав себя на мысли о средствах, попробуйте осознанно переключиться на мысли о целях, при этом используйте инструмент «Коленка».\n\n2. В вашем списке целей выделите пункты, которые являются не целями, а средствами. Поставьте букву С напротив этих пунктов. Этот список нужно будет отправить позже, не сейчас.'
+        },
+        {
+          num: 4,
+          title: 'Атрибуты цели',
+          folder: 'Блок 3 - Цели и запасные варианты/Урок 4 - Атрибуты цели',
+          videos: ['Урок 4 - Атрибуты цели.mp4'],
+          files: [{name:'Презентация', file:'Презентация.pdf', type:'pdf'}],
+          task: 'В вашем списке целей выделите пункты, которые являются не целями, а Атрибутами. Поставьте букву А напротив этих пунктов. Этот список нужно будет отправить позже, не сейчас.\n\nP.S. В дальнейшем при появлении новых целей не забывайте проверить их: не являются ли они средствами или атрибутами.'
+        },
+        {
+          num: 5,
+          title: 'Цели-гирьки',
+          folder: 'Блок 3 - Цели и запасные варианты/Урок 5 - Цели-гирьки',
+          videos: ['Урок 5 - Цели-гирьки.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация.pdf', type:'pdf'},
+            {name:'Примеры работы с целями', file:'Примеры работы с целями.pdf', type:'pdf'},
+            {name:'Домашнее задание', file:'Домашнее задание.docx', type:'docx'}
+          ],
+          task: ''
+        },
+        {
+          num: 6,
+          title: 'Согласование цели с Душой',
+          folder: 'Блок 3 - Цели и запасные варианты/Урок 6 - Согласование цели с Душой',
+          videos: ['Урок 6 - Согласование цели с Душой.mp4'],
+          files: [{name:'Презентация', file:'Презентация.pdf', type:'pdf'}],
+          task: 'Выполните медитацию «Глаза ребёнка». В ответе на задание напишите, получилось ли выполнить медитацию? Какие у вас были эмоции? Если вы получили ответ от ребёнка, какой он был?\n\nP.S. Если это упражнение не получилось с первого раза, попробуйте повторить его на следующий день.'
+        },
+        {
+          num: 7,
+          title: 'Бесцелевой период',
+          folder: 'Блок 3 - Цели и запасные варианты/Урок 7 - Бесцелевой период',
+          videos: [
+            'Урок 7 - Бесцелевой период (часть 1).mp4',
+            'Урок 7 - Бесцелевой период (часть 2).mp4'
+          ],
+          files: [{name:'Презентация', file:'Презентация.pdf', type:'pdf'}],
+          task: 'Был ли у вас в жизни бесцелевой период (возможно, вы проживаете его сейчас)? Напишите, как вы себя вели в это время: занимались ли судорожным поиском целей, пребывали в депрессии или просто наслаждались текущим моментом.'
+        },
+        {
+          num: 8,
+          title: 'Запасной вариант',
+          folder: 'Блок 3 - Цели и запасные варианты/Урок 8 - Запасной вариант',
+          videos: ['Урок 8 - Запасной вариант.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация.pdf', type:'pdf'},
+            {name:'Примеры запасных вариантов', file:'Примеры запасных вариантов.pdf', type:'pdf'}
+          ],
+          task: 'Ознакомьтесь с файлом «Примеры запасных вариантов». Сейчас вам не нужно ничего отправлять.'
+        },
+        {
+          num: 9,
+          title: 'Секреты использования запасного варианта',
+          folder: 'Блок 3 - Цели и запасные варианты/Урок 9 - Секреты использования запасного варианта',
+          videos: ['Урок 9 - Секреты использования запасного варианта.mp4'],
+          files: [{name:'Презентация', file:'Презентация.pdf', type:'pdf'}],
+          task: '',
+          stop: true
+        }
+      ]
+    },
+
+    // ─── БЛОК 4 ─────────────────────────────────────────────
+    {
+      id: 'block4',
+      title: 'Блок 4 — Важности и маятники. Знаки и препятствия',
+      icon: '⚖️',
+      folder: 'Блок 4 - Важности и маятники. Знаки и препятствия',
+      lessons: [
+        {
+          num: 1,
+          title: 'Важности и избыточные потенциалы',
+          folder: 'Блок 4 - Важности и маятники. Знаки и препятствия/Урок 1 - Важности и избыточные потенциалы',
+          videos: ['Урок 1 - Важности и избыточные потенциалы.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация - Важности и избыточные потенциалы.pdf', type:'pdf'},
+            {name:'Алфавитный список важностей', file:'Алфавитный список важностей.pdf', type:'pdf'},
+            {name:'Таблица важностей', file:'Таблица важностей.docx', type:'docx'}
+          ],
+          task: ''
+        },
+        {
+          num: 2,
+          title: 'Важности (продолжение)',
+          folder: 'Блок 4 - Важности и маятники. Знаки и препятствия/Урок 2 - Важности (продолжение)',
+          videos: ['Урок 2 - Важности (продолжение).mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация - Важности (продолжение).pdf', type:'pdf'},
+            {name:'Вадим Зеланд о маятниках', file:'Вадим Зеланд о маятниках.pdf', type:'pdf'}
+          ],
+          task: '1. Прочтите свои ответы на 8 вопросов бланка «Значимые точки», который вы заполняли ранее (задание в уроке 8 Блока 1).\n\n2. Прочтите текст Вадима Зеланда о маятниках — это необходимо для понимания следующего занятия.'
+        },
+        {
+          num: 3,
+          title: 'Маятники',
+          folder: 'Блок 4 - Важности и маятники. Знаки и препятствия/Урок 3 - Маятники',
+          videos: ['Урок 3 - Маятники.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация - Маятники.pdf', type:'pdf'},
+            {name:'Список маятников', file:'Список маятников.pdf', type:'pdf'},
+            {name:'Таблица маятников', file:'Таблица маятников.docx', type:'docx'}
+          ],
+          task: ''
+        },
+        {
+          num: 4,
+          title: 'Инструмент для работы с маятником и важностью',
+          folder: 'Блок 4 - Важности и маятники. Знаки и препятствия/Урок 4 - Инструмент для работы с маятником и важностью',
+          videos: ['Урок 4 - Инструмент для работы с маятником и важностью.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация - Инструмент для работы.pdf', type:'pdf'},
+            {name:'3 примера работы с маятником и важностью', file:'3 примера работы с маятником и важностью.pdf', type:'pdf'}
+          ],
+          task: ''
+        },
+        {
+          num: 5,
+          title: 'Ревизия маятников',
+          folder: 'Блок 4 - Важности и маятники. Знаки и препятствия/Урок 5 - Ревизия маятников',
+          videos: ['Урок 5 - Ревизия маятников.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация - Ревизия маятников.pdf', type:'pdf'},
+            {name:'5 категорий маятников', file:'5 категорий маятников.pdf', type:'pdf'}
+          ],
+          task: ''
+        },
+        {
+          num: 6,
+          title: 'Ревизия важностей',
+          folder: 'Блок 4 - Важности и маятники. Знаки и препятствия/Урок 6 - Ревизия важностей',
+          videos: ['Урок 6 - Ревизия важностей.mp4'],
+          files: [{name:'Презентация', file:'Презентация - Ревизия важностей.pdf', type:'pdf'}],
+          task: ''
+        },
+        {
+          num: 7,
+          title: 'Знаки',
+          folder: 'Блок 4 - Важности и маятники. Знаки и препятствия/Урок 7 - Знаки',
+          videos: ['Урок 7 - Знаки.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация - Знаки.pdf', type:'pdf'},
+            {name:'4 примера глобальных целей и препятствий', file:'4 примера глобальных целей и препятствий.pdf', type:'pdf'},
+            {name:'Таблица глобальных целей и препятствий', file:'Таблица глобальных целей и препятствий.docx', type:'docx'}
+          ],
+          task: ''
+        },
+        {
+          num: 8,
+          title: 'Глобальные препятствия',
+          folder: 'Блок 4 - Важности и маятники. Знаки и препятствия/Урок 8 - Глобальные препятствия',
+          videos: ['Урок 8 - Глобальные препятствия.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация - Глобальные препятствия.pdf', type:'pdf'},
+            {name:'4 примера работы с препятствиями', file:'4 примера работы с препятствиями.pdf', type:'pdf'},
+            {name:'Пример заполнения таблицы', file:'Пример заполнения таблицы.pdf', type:'pdf'}
+          ],
+          task: '',
+          stop: true
+        },
+        {
+          num: 9,
+          title: 'Локальные препятствия',
+          folder: 'Блок 4 - Важности и маятники. Знаки и препятствия/Урок 9 - Локальные препятствия',
+          videos: ['Урок 9 - Локальные препятствия.mp4'],
+          files: [{name:'Презентация', file:'Презентация - Локальные препятствия.pdf', type:'pdf'}],
+          task: ''
+        }
+      ]
+    },
+
+    // ─── БЛОК 5 ─────────────────────────────────────────────
+    {
+      id: 'block5',
+      title: 'Блок 5 — Действенные инструменты на все случаи жизни',
+      icon: '🛠️',
+      folder: 'Блок 5 - Действенные инструменты на все случаи жизни',
+      lessons: [
+        {
+          num: 1,
+          title: 'Детские мечты',
+          folder: 'Блок 5 - Действенные инструменты на все случаи жизни/Урок 1 - Детские мечты',
+          videos: ['Урок 1 - Детские мечты.mp4'],
+          files: [{name:'Презентация', file:'Презентация - Детские мечты.pdf', type:'pdf'}],
+          task: ''
+        },
+        {
+          num: 2,
+          title: 'Детские мечты — продолжение',
+          folder: 'Блок 5 - Действенные инструменты на все случаи жизни/Урок 2 - Детские мечты – продолжение',
+          videos: ['Урок 2 - Детские мечты – продолжение.mp4'],
+          files: [{name:'Презентация', file:'Презентация - Детские мечты (продолжение).pdf', type:'pdf'}],
+          task: ''
+        },
+        {
+          num: 3,
+          title: 'Ресурс родовой системы',
+          folder: 'Блок 5 - Действенные инструменты на все случаи жизни/Урок 3 - Ресурс родовой системы',
+          videos: ['Урок 3 - Ресурс родовой системы.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация - Ресурс родовой системы.pdf', type:'pdf'},
+            {name:'Хеллингер — О пользе хорошего отношения к родителям', file:'Хеллингер - О пользе хорошего отношения к родителям.pdf', type:'pdf'},
+            {name:'Медитация — Мой род у меня за спиной', file:'Медитация - Мой род у меня за спиной.mp3', type:'mp3'}
+          ],
+          task: ''
+        },
+        {
+          num: 4,
+          title: 'Управление временем',
+          folder: 'Блок 5 - Действенные инструменты на все случаи жизни/Урок 4 - Управление временем',
+          videos: ['Урок 4 - Управление временем.mp4'],
+          files: [{name:'Презентация', file:'Презентация - Управление временем.pdf', type:'pdf'}],
+          task: ''
+        },
+        {
+          num: 5,
+          title: 'Алгоритм работы с локальными целями',
+          folder: 'Блок 5 - Действенные инструменты на все случаи жизни/Урок 5 - Алгоритм работы с локальными целями',
+          videos: ['Урок 5 - Алгоритм работы с локальными целями.mp4'],
+          files: [{name:'Презентация', file:'Презентация - Алгоритм работы с локальными целями.pdf', type:'pdf'}],
+          task: ''
+        },
+        {
+          num: 6,
+          title: 'Достаточно',
+          folder: 'Блок 5 - Действенные инструменты на все случаи жизни/Урок 6 - Достаточно',
+          videos: ['Урок 6 - Достаточно.mp4'],
+          files: [
+            {name:'Презентация', file:'Презентация - Достаточно.pdf', type:'pdf'},
+            {name:'Медитация — Мне достаточно', file:'Медитация - Мне достаточно.mp3', type:'mp3'}
+          ],
+          task: ''
+        },
+        {
+          num: 7,
+          title: 'Партнёрство с Жизнью',
+          folder: 'Блок 5 - Действенные инструменты на все случаи жизни/Урок 7 - Партнерство с Жизнью',
+          videos: ['Урок 7 - Партнерство с Жизнью.mp4'],
+          files: [{name:'Презентация', file:'Презентация - Партнерство с Жизнью.pdf', type:'pdf'}],
+          task: '',
+          stop: true
+        }
+      ]
+    }
+  ]
+};
+
+// ============================================================
+// RENDERING
+// ============================================================
+
+function fileIcon(type) {
+  return type === 'pdf' ? '📄' : type === 'docx' ? '📝' : '🎵';
+}
+
+function buildSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  let html = '';
+  COURSE.blocks.forEach((block, bi) => {
+    html += `<div class="block-section" id="bs-${block.id}">
+      <div class="block-title" onclick="toggleBlock('${block.id}')">
+        <span class="block-icon">${block.icon}</span>
+        <span>${block.title}</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="lessons-list">`;
+    block.lessons.forEach(lesson => {
+      const lid = `${block.id}-${lesson.num}`;
+      html += `<div class="lesson-item" id="li-${lid}" onclick="showLesson('${block.id}', ${lesson.num})">
+        <span class="num">${lesson.num}</span>
+        <span>${lesson.title}${lesson.stop ? ' <span class="stop-badge">стоп</span>' : ''}</span>
+      </div>`;
+    });
+    html += `</div></div>`;
+  });
+  sidebar.innerHTML = html;
+}
+
+function toggleBlock(blockId) {
+  const section = document.getElementById('bs-' + blockId);
+  section.classList.toggle('open');
+}
+
+function showWelcome() {
+  document.querySelectorAll('.lesson-item').forEach(el => el.classList.remove('active'));
+  const totalLessons = COURSE.blocks.reduce((s, b) => s + b.lessons.length, 0);
+  const totalFiles = COURSE.blocks.reduce((s, b) => s + b.lessons.reduce((s2, l) => s2 + l.files.length, 0), 0);
+
+  document.getElementById('main').innerHTML = `
+    <div class="welcome-screen">
+      <h1>🌿 ${COURSE.title}</h1>
+      <p>Группа «Белка» · Базовый пакет · Офлайн-версия</p>
+      <div class="stats">
+        <div class="stat-item"><div class="num">${COURSE.blocks.length}</div><div class="label">блоков</div></div>
+        <div class="stat-item"><div class="num">${totalLessons}</div><div class="label">уроков</div></div>
+        <div class="stat-item"><div class="num">${totalFiles}</div><div class="label">материалов</div></div>
+      </div>
+      <p>Выберите урок в меню слева для просмотра. ${IS_LOCAL ? 'Файлы читаются локально.' : 'Файлы загружаются с Яндекс.Диска.'}</p>
+
+      ${COURSE.intro_video ? `
+      <div class="section-card" style="margin-top:24px;text-align:left">
+        <div class="section-card-header">🎬 Вводное видео</div>
+        <div class="section-card-body">
+          <div class="video-wrapper">
+            <video controls preload="metadata" ${IS_LOCAL ? `src="${localSrc('', COURSE.intro_video)}"` : `data-yd="${COURSE.intro_video}"`}></video>
+          </div>
+        </div>
+      </div>` : ''}
+    </div>`;
+  if (!IS_LOCAL) hydrateRemote(document.getElementById('main'));
+}
+
+function showLesson(blockId, lessonNum) {
+  const block = COURSE.blocks.find(b => b.id === blockId);
+  const lesson = block.lessons.find(l => l.num === lessonNum);
+
+  // Highlight active
+  document.querySelectorAll('.lesson-item').forEach(el => el.classList.remove('active'));
+  document.getElementById(`li-${blockId}-${lessonNum}`).classList.add('active');
+
+  // Close sidebar on mobile
+  if (window.innerWidth < 768) {
+    document.getElementById('sidebar').classList.remove('open');
+  }
+
+  let html = `
+    <div class="lesson-header">
+      <div class="lesson-breadcrumb">${block.title} <span>›</span></div>
+      <div class="lesson-title">Урок ${lesson.num} — ${lesson.title}${lesson.stop ? ' <span class="stop-badge">стоп-урок</span>' : ''}</div>
+    </div>`;
+
+  // Videos
+  if (lesson.videos && lesson.videos.length > 0) {
+    html += `<div class="section-card">
+      <div class="section-card-header">🎬 Видеоурок</div>
+      <div class="section-card-body">`;
+    lesson.videos.forEach((v, i) => {
+      const rel = lesson.folder ? lesson.folder + '/' + v : v;
+      const srcAttr = IS_LOCAL
+        ? `src="${localSrc(lesson.folder, v)}"`
+        : `data-yd="${rel}"`;
+      html += `<div class="video-wrapper">
+          <video controls preload="metadata" ${srcAttr}></video>
+        </div>`;
+      if (lesson.videos.length > 1) {
+        html += `<div class="video-label">Часть ${i + 1}</div>`;
+      }
+    });
+    html += `</div></div>`;
+  }
+
+  // Task / Homework
+  if (lesson.task) {
+    html += `<div class="task-card">
+      <div class="task-header">📋 Задание</div>
+      <div class="task-text">${lesson.task.replace(/\n\n/g, '</p><p style="margin-top:10px">').replace(/\n/g, '<br>')}</div>
+    </div>`;
+  }
+
+  // Files
+  const filesWithoutMp3 = lesson.files.filter(f => f.type !== 'mp3');
+  const mp3Files = lesson.files.filter(f => f.type === 'mp3');
+
+  if (filesWithoutMp3.length > 0) {
+    html += `<div class="section-card">
+      <div class="section-card-header">📁 Материалы к уроку</div>
+      <div class="section-card-body">
+        <div class="files-grid">`;
+    filesWithoutMp3.forEach(f => {
+      const rel = lesson.folder ? lesson.folder + '/' + f.file : f.file;
+      const hrefAttr = IS_LOCAL
+        ? `href="${localSrc(lesson.folder, f.file)}"`
+        : `data-yd="${rel}"`;
+      html += `<a class="file-chip ${f.type}" ${hrefAttr} target="_blank" download>
+          <span class="file-icon">${fileIcon(f.type)}</span>
+          <span>${f.name}</span>
+        </a>`;
+    });
+    html += `</div></div></div>`;
+  }
+
+  // Audio (MP3)
+  if (mp3Files.length > 0) {
+    html += `<div class="section-card">
+      <div class="section-card-header">🎵 Медитации и аудио</div>
+      <div class="section-card-body">`;
+    mp3Files.forEach(f => {
+      const rel = lesson.folder ? lesson.folder + '/' + f.file : f.file;
+      const srcAttr = IS_LOCAL
+        ? `src="${localSrc(lesson.folder, f.file)}"`
+        : `data-yd="${rel}"`;
+      html += `<div style="margin-bottom:12px">
+          <div style="font-size:.875rem;font-weight:600;margin-bottom:6px;color:#14532d">🎵 ${f.name}</div>
+          <audio controls class="audio-player" ${srcAttr}></audio>
+        </div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // Navigation buttons
+  const allLessons = [];
+  COURSE.blocks.forEach(b => b.lessons.forEach(l => allLessons.push({blockId: b.id, num: l.num})));
+  const currentIdx = allLessons.findIndex(x => x.blockId === blockId && x.num === lessonNum);
+
+  html += `<div style="display:flex;gap:12px;margin-top:8px;padding-bottom:32px">`;
+  if (currentIdx > 0) {
+    const prev = allLessons[currentIdx - 1];
+    html += `<button onclick="showLesson('${prev.blockId}', ${prev.num})" style="padding:10px 18px;border-radius:8px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:.875rem;color:#374151">← Предыдущий урок</button>`;
+  }
+  if (currentIdx < allLessons.length - 1) {
+    const next = allLessons[currentIdx + 1];
+    html += `<button onclick="showLesson('${next.blockId}', ${next.num})" style="margin-left:auto;padding:10px 18px;border-radius:8px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:.875rem;font-weight:600">Следующий урок →</button>`;
+  }
+  html += `</div>`;
+
+  const main = document.getElementById('main');
+  main.innerHTML = html;
+  main.scrollTop = 0;
+  if (!IS_LOCAL) hydrateRemote(main);
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+// ============================================================
+// INIT
+// ============================================================
+(function init() {
+  buildSidebar();
+  showWelcome();
+
+  // Open first block by default
+  document.getElementById('bs-intro') && toggleBlock('intro');
+  document.getElementById('bs-block1') && toggleBlock('block1');
+})();
+</script>
+</body>
+</html>
